@@ -17,29 +17,33 @@ with st.sidebar:
     prihranki = st.number_input("Trenutni prihranki (€)", value=5000)
 
 # IZRAČUNI
-# 1. Bolniška: Bolezen (80%) vs Nezgoda (70%)
-bolniska_bolezen = mesecni_prihodek * 0.8
-bolniska_nezgoda = mesecni_prihodek * 0.7
+# 1. Osnovna bolniška
+bolniska_80 = mesecni_prihodek * 0.8
+bolniska_90 = mesecni_prihodek * 0.9
+bolniska_70_nezgoda = mesecni_prihodek * 0.7
 
-# Mesečni manjko (Razlika med polno plačo in bolniško)
-manjko_bolezen = mesecni_prihodek - bolniska_bolezen
-manjko_nezgoda = mesecni_prihodek - bolniska_nezgoda
+# Mesečni manjko (Razlika med polno plačo in izplačilom)
+manjko_bolezen_osnovno = mesecni_prihodek - bolniska_80
+manjko_nezgoda = mesecni_prihodek - bolniska_70_nezgoda
 
-# Potrebno dnevno nadomestilo samo za NEZGODO
+# Dnevno nadomestilo samo za NEZGODO
 nadomestilo_nezgoda = manjko_nezgoda / 30
 
-# 2. Vzdržnost prihrankov (Primerjava prihrankov z izpadom dohodka)
+# 2. Vzdržnost prihrankov (Primerjava z izpadom pri nezgodi)
 def izracunaj_vzdrznost(prihranki, manjko):
     if manjko <= 0: return "Ni izpada"
     return round(prihranki / manjko, 1)
 
-mesecev_prihrankov_bolezen = izracunaj_vzdrznost(prihranki, manjko_bolezen)
 mesecev_prihrankov_nezgoda = izracunaj_vzdrznost(prihranki, manjko_nezgoda)
 
-# 3. Scenarij HUDA BOLEZEN (3-letni vpliv)
-izpad_leto_1_2 = (mesecni_prihodek * 0.2) * 24 
-izpad_leto_3 = (mesecni_prihodek * 0.5) * 12
-skupni_izpad_huda_bolezen = izpad_leto_1_2 + izpad_leto_3
+# 3. NOVI SCENARIJ: HUDA BOLEZEN (36 mesecev)
+# - 3 mesece: 80% (izpad 20%)
+# - 21 mesecev: 90% (izpad 10%)
+# - 12 mesecev: 50% (izpad 50%)
+izpad_huda_3m = (mesecni_prihodek * 0.2) * 3
+izpad_huda_21m = (mesecni_prihodek * 0.1) * 21
+izpad_huda_12m = (mesecni_prihodek * 0.5) * 12
+skupni_izpad_huda_bolezen = izpad_huda_3m + izpad_huda_21m + izpad_huda_12m
 
 # 4. Formule za zavarovalne vsote
 letni_prihodek = mesecni_prihodek * 12
@@ -60,10 +64,9 @@ with c1:
     st.write(f"Nujni mesečni stroški: **{mesecni_stroski:,.0f} €**")
 
 with c2:
-    st.warning("🤒 **Bolezen (80% izplačilo)**")
-    st.write(f"Mesečni izpad: **-{manjko_bolezen:,.0f} €**")
-    st.metric("Prihranki pokrijejo izpad za", f"{mesecev_prihrankov_bolezen} mesecev")
-    st.caption("Čas, preden boste morali znižati standard ali najeti kredit.")
+    st.warning("🤒 **Bolezen (Prvi meseci)**")
+    st.write(f"Izpad dohodka (80%): **-{manjko_bolezen_osnovno:,.0f} €**")
+    st.write(f"Kasneje (90%): **-{mesecni_prihodek*0.1:,.0f} €**")
 
 with c3:
     st.error("💥 **Nezgoda (70% izplačilo)**")
@@ -73,21 +76,26 @@ with c3:
 
 st.markdown("---")
 
-# --- PRIKAZ 2: HUDA BOLEZEN & KAPITALNA ZAŠČITA ---
+# --- PRIKAZ 2: HUDA BOLEZEN (Specifična časovnica) ---
 col_left, col_right = st.columns([1, 1])
 
 with col_left:
-    st.subheader("⚠️ Scenarij: Huda bolezen (3 leta)")
-    st.write(f"Skupni primanjkljaj v 36 mesecih:")
-    st.title(f"{skupni_izpad_huda_bolezen:,.0f} €")
+    st.subheader("⚠️ Scenarij: Huda bolezen (36 mesecev)")
+    st.write("Potek izplačil:")
+    st.markdown(f"1. **Mesec 1-3:** 80% ({bolniska_80:,.0f} €)")
+    st.markdown(f"2. **Mesec 4-24:** 90% ({bolniska_90:,.0f} €)")
+    st.markdown(f"3. **Mesec 25-36:** 50% ({mesecni_prihodek*0.5:,.0f} €)")
     
-    # Vizualizacija izpada
+    st.metric("Skupni primanjkljaj v 3 letih", f"{skupni_izpad_huda_bolezen:,.0f} €")
+    
+    # Vizualizacija izpada po tvojem scenariju
     meseci = list(range(1, 37))
-    prihodek_po_mesecih = [bolniska_bolezen]*24 + [mesecni_prihodek * 0.5]*12
+    prihodek_po_mesecih = [bolniska_80]*3 + [bolniska_90]*21 + [mesecni_prihodek * 0.5]*12
+    
     fig_hb = go.Figure()
-    fig_hb.add_trace(go.Scatter(x=meseci, y=prihodek_po_mesecih, fill='tozeroy', name='Prihodek', line_color='red'))
+    fig_hb.add_trace(go.Scatter(x=meseci, y=prihodek_po_mesecih, fill='tozeroy', name='Prihodek', line_color='red', line_shape='hv'))
     fig_hb.add_hline(y=mesecni_stroski, line_dash="dash", line_color="black", annotation_text="Nujni stroški")
-    fig_hb.update_layout(height=280, margin=dict(t=20, b=20), yaxis_title="Mesečni prihodek (€)")
+    fig_hb.update_layout(height=300, margin=dict(t=20, b=20), yaxis_title="Mesečni neto prihodek (€)", xaxis_title="Mesec rehabilitacije")
     st.plotly_chart(fig_hb, use_container_width=True)
 
 with col_right:
@@ -107,4 +115,4 @@ with col_right:
     st.plotly_chart(narisi_graf("Vrzel: INVALIDNOST (6x letna + dolg)", vrzel_invalidnost, "#FF4B4B"), use_container_width=True)
 
 st.markdown("---")
-st.success(f"💡 **Prodajni argument:** Vaših {prihranki:,.0f} € prihrankov ob nezgodi poide v manj kot {mesecev_prihrankov_nezgoda} mesecih, če želite ohraniti enak standard. Zavarovanje dnevnega nadomestila ohrani vaše prihranke nedotaknjene.")
+st.success(f"💡 **Prodajni argument:** Kljub temu, da je bolniška sprva 90%, v zadnjem letu rehabilitacije prihodek pade globoko pod nujne stroške ({mesecni_stroski} €). Skupna luknja {skupni_izpad_huda_bolezen:,.0f} € je tista, ki jo mora pokriti polica za hude bolezni.")

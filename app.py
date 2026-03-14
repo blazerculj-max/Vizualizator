@@ -1,17 +1,18 @@
 import streamlit as st
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Prodajni Vizualizator: Varnostna Vrzel", layout="wide")
+st.set_page_config(page_title="Prodajni Vizualizator: Preživetvena Vrzel", layout="wide")
 
-st.title("🛡️ Diagnostika finančne varnosti in vrzeli")
+st.title("🛡️ Diagnostika finančne varnosti: Preživetveni model")
 st.markdown("---")
 
 # VNOSI V STRANSKI VRSTICI
 with st.sidebar:
     st.header("👤 Finančni podatki")
     mesecni_prihodek = st.number_input("Mesečni neto prihodek (€)", value=2000, step=100)
-    letni_prihodek = mesecni_prihodek * 12
+    mesecni_stroski = st.number_input("Nujni mesečni stroški (Kredit, hrana, položnice) (€)", value=1700, step=100)
     
+    st.markdown("---")
     kredit = st.number_input("Preostanek vseh kreditov (€)", value=80000, step=5000)
     prihranki = st.number_input("Trenutna likvidna sredstva (€)", value=5000)
 
@@ -20,12 +21,9 @@ with st.sidebar:
 bolniska_bolezen = mesecni_prihodek * 0.8
 bolniska_nezgoda = mesecni_prihodek * 0.7
 
-izpad_bolezen = mesecni_prihodek - bolniska_bolezen
-izpad_nezgoda = mesecni_prihodek - bolniska_nezgoda
-
-# Predvideno dnevno nadomestilo, da pokrijemo izpad pri nezgodi
-# Izračun: Izpad nezgoda / 30 dni
-potrebno_dnevno_nadomestilo = izpad_nezgoda / 30
+# VRZEL glede na stroške (Koliko zmanjka za preživetje?)
+vrzel_prezivetja_bolezen = mesecni_stroski - bolniska_bolezen
+vrzel_prezivetja_nezgoda = mesecni_stroski - bolniska_nezgoda
 
 # 2. Scenarij HUDA BOLEZEN (3-letni vpliv)
 izpad_leto_1_2 = (mesecni_prihodek * 0.2) * 24 
@@ -33,74 +31,66 @@ izpad_leto_3 = (mesecni_prihodek * 0.5) * 12
 skupni_izpad_huda_bolezen = izpad_leto_1_2 + izpad_leto_3
 
 # 3. Formule za zavarovalne vsote
+letni_prihodek = mesecni_prihodek * 12
 potreba_smrt = (letni_prihodek * 3) + kredit
 potreba_invalidnost = (letni_prihodek * 6) + kredit
 
 vrzel_smrt = max(0, potreba_smrt - prihranki)
 vrzel_invalidnost = max(0, potreba_invalidnost - prihranki)
 
-# --- PRIKAZ 1: PRIMERJAVA BOLNIŠKE (Bolezen vs Nezgoda) ---
-st.subheader("📉 Takojšen izpad prihodka (Mesečno)")
+# --- PRIKAZ 1: PREŽIVETVENI PRIMANJKLJAJ ---
+st.subheader("📉 Ali vaša bolniška sploh pokrije nujne stroške?")
 c1, c2, c3 = st.columns(3)
 
 with c1:
-    st.info(f"**Polna plača:** {mesecni_prihodek:,.0f} €")
+    st.metric("Nujni stroški", f"{mesecni_stroski:,.0f} €")
+    st.caption("Vaš minimalni mesečni prag.")
 
 with c2:
-    st.error(f"**Bolezen (80%):** {bolniska_bolezen:,.0f} €")
-    st.caption(f"Primanjkljaj: -{izpad_bolezen:,.0f} €/mesec")
+    delta_b = -vrzel_prezivetja_bolezen if vrzel_prezivetja_bolezen > 0 else abs(vrzel_prezivetja_bolezen)
+    st.metric("Bolezen (80%)", f"{bolniska_bolezen:,.0f} €", delta=f"{delta_b:,.0f} €")
+    if vrzel_prezivetja_bolezen > 0:
+        st.error(f"Primanjkljaj za stroške: {vrzel_prezivetja_bolezen:,.0f} €")
 
 with c3:
-    st.error(f"**Nezgoda (70%):** {bolniska_nezgoda:,.0f} €")
-    st.caption(f"Primanjkljaj: -{izpad_nezgoda:,.0f} €/mesec")
-
-# Dnevno nadomestilo
-st.markdown(f"""
-> 💡 **Prodajni namig:** Da bi stranka ob nezgodi ohranila standard (2.000 €), potrebuje zavarovano dnevno nadomestilo v višini vsaj **{potrebno_dnevno_nadomestilo:.2f} €/dan**.
-""")
+    delta_n = -vrzel_prezivetja_nezgoda if vrzel_prezivetja_nezgoda > 0 else abs(vrzel_prezivetja_nezgoda)
+    st.metric("Nezgoda (70%)", f"{bolniska_nezgoda:,.0f} €", delta=f"{delta_n:,.0f} €")
+    if vrzel_prezivetja_nezgoda > 0:
+        st.error(f"Primanjkljaj za stroške: {vrzel_prezivetja_nezgoda:,.0f} €")
 
 st.markdown("---")
 
-# --- PRIKAZ 2: HUDA BOLEZEN (Realističen scenarij 3 let) ---
-st.subheader("⚠️ Scenarij: Huda bolezen (3-letna rehabilitacija)")
-col_a, col_b = st.columns([1, 2])
+# --- PRIKAZ 2: HUDA BOLEZEN & KAPITALNA ZAŠČITA ---
+col_left, col_right = st.columns([1, 1])
 
-with col_a:
-    st.write("- **Leti 1 & 2:** 80% bolniška")
-    st.write("- **Leto 3:** 50% skrajšan delovnik")
-    st.metric("Skupni izpad prihodka", f"-{skupni_izpad_huda_bolezen:,.0f} €")
-
-with col_b:
+with col_left:
+    st.subheader("⚠️ Scenarij: Huda bolezen")
+    st.write(f"V 3 letih bi vaši družini za preživetje in rehabilitacijo zmanjkalo:")
+    st.title(f"{skupni_izpad_huda_bolezen:,.0f} €")
+    
+    # Vizualizacija izpada
     meseci = list(range(1, 37))
     prihodek_po_mesecih = [bolniska_bolezen]*24 + [mesecni_prihodek * 0.5]*12
     fig_hb = go.Figure()
-    fig_hb.add_trace(go.Scatter(x=meseci, y=prihodek_po_mesecih, fill='tozeroy', name='Dejanski prihodek', line_color='red'))
-    fig_hb.add_hline(y=mesecni_prihodek, line_dash="dash", annotation_text="Polna plača")
-    fig_hb.update_layout(title="Padanje prihodkov", height=250, margin=dict(t=30, b=0))
+    fig_hb.add_trace(go.Scatter(x=meseci, y=prihodek_po_mesecih, fill='tozeroy', name='Prihodek', line_color='red'))
+    fig_hb.add_hline(y=mesecni_stroski, line_dash="dash", line_color="black", annotation_text="Nujni stroški")
+    fig_hb.update_layout(height=250, margin=dict(t=20, b=20))
     st.plotly_chart(fig_hb, use_container_width=True)
 
-st.markdown("---")
+with col_right:
+    st.subheader("📊 Kapitalna zaščita")
+    
+    def narisi_graf(naslov, vrednost, barva):
+        fig = go.Figure(go.Indicator(
+            mode = "gauge+number",
+            value = vrednost,
+            title = {'text': naslov, 'font': {'size': 16}},
+            gauge = {'axis': {'range': [0, potreba_invalidnost + 20000]}, 'bar': {'color': barva}}
+        ))
+        fig.update_layout(height=200, margin=dict(l=20, r=20, t=40, b=20))
+        return fig
 
-# --- PRIKAZ 3: DOLGOROČNA VARNOST (Grafi) ---
-st.subheader("📊 Kapitalna zaščita (Smrt in Invalidnost)")
+    st.plotly_chart(narisi_graf("Vrzel: SMRT", vrzel_smrt, "#31333F"), use_container_width=True)
+    st.plotly_chart(narisi_graf("Vrzel: INVALIDNOST", vrzel_invalidnost, "#FF4B4B"), use_container_width=True)
 
-def narisi_graf(naslov, vrednost, barva, max_val):
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number",
-        value = vrednost,
-        title = {'text': naslov, 'font': {'size': 18}},
-        gauge = {'axis': {'range': [0, max_val]}, 'bar': {'color': barva}}
-    ))
-    fig.update_layout(height=250, margin=dict(l=20, r=20, t=50, b=20))
-    return fig
-
-col1, col2 = st.columns(2)
-limit = potreba_invalidnost + 20000
-
-with col1:
-    st.plotly_chart(narisi_graf("Kritje za primer SMRTI", vrzel_smrt, "#31333F", limit), use_container_width=True)
-    st.caption(f"Formula: (3x Letni prihodek) + Dolgovi")
-
-with col2:
-    st.plotly_chart(narisi_graf("Kritje za INVALIDNOST", vrzel_invalidnost, "#FF4B4B", limit), use_container_width=True)
-    st.caption(f"Formula: (6x Letni prihodek) + Dolgovi")
+st.info("💡 **Coach nasvet:** Ko stranka vidi, da črna črta (stroški) leži nad rdečim poljem (prihodek), vprašanje ni več 'ali potrebujem zavarovanje', ampak 'kako bomo preživeli'.")

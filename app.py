@@ -1,7 +1,7 @@
 import streamlit as st
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Prodajni Vizualizator: Finančna Varnost", layout="wide")
+st.set_page_config(page_title="Prodajni Vizualizator: Finančni Impact", layout="wide")
 
 st.title("🛡️ Diagnostika finančne varnosti in vrzeli")
 st.markdown("---")
@@ -20,23 +20,40 @@ with st.sidebar:
 bolniska_izplacilo = mesecni_prihodek * 0.8
 izpad_mesecno = mesecni_prihodek - bolniska_izplacilo
 
-# 2. Formule za zavarovalne vsote (po tvojih navodilih)
+# 2. Scenarij HUDA BOLEZEN (3-letni vpliv)
+# Leto 1 & 2: 80% bolniška (izpad 20% vsako leto)
+izpad_leto_1_2 = (mesecni_prihodek * 0.2) * 24 
+# Leto 3: Polovični delovni čas (izpad 50% prihodka)
+izpad_leto_3 = (mesecni_prihodek * 0.5) * 12
+skupni_izpad_huda_bolezen = izpad_leto_1_2 + izpad_leto_3
+
+# 3. Formule za zavarovalne vsote (po tvojih navodilih)
 potreba_smrt = (letni_prihodek * 3) + kredit
 potreba_invalidnost = (letni_prihodek * 6) + kredit
 
 vrzel_smrt = max(0, potreba_smrt - prihranki)
 vrzel_invalidnost = max(0, potreba_invalidnost - prihranki)
 
-# --- PRIKAZ 1: BOLNIŠKA (Takojšnja realnost) ---
-st.subheader("📉 Takojšen vpliv na življenjski slog (Bolniška)")
-c1, c2, c3 = st.columns(3)
+# --- PRIKAZ 1: HUDA BOLEZEN (Realističen scenarij 3 let) ---
+st.subheader("⚠️ Scenarij: Huda bolezen (Rehabilitacija)")
+col_a, col_b = st.columns([1, 2])
 
-with c1:
-    st.metric("Polna plača", f"{mesecni_prihodek:,.0f} €")
-with c2:
-    st.metric("Nadomestilo (80%)", f"{bolniska_izplacilo:,.0f} €", delta=f"-{izpad_mesecno:,.0f} €", delta_color="inverse")
-with c3:
-    st.warning(f"Vsak mesec bolniške vam v proračunu zmanjka **{izpad_mesecno:,.0f} €**.")
+with col_a:
+    st.write("Potek:")
+    st.write("- **Leto 1 & 2:** Bolniška (80 %)")
+    st.write("- **Leto 3:** Polovični delovni čas (50 %)")
+    st.metric("Skupni izpad prihodka", f"-{skupni_izpad_huda_bolezen:,.0f} €", delta_color="inverse")
+
+with col_b:
+    # Vizualizacija izpada skozi čas
+    meseci = list(range(1, 37))
+    prihodek_po_mesecih = [bolniska_izplacilo]*24 + [mesecni_prihodek * 0.5]*12
+    
+    fig_hb = go.Figure()
+    fig_hb.add_trace(go.Scatter(x=meseci, y=prihodek_po_mesecih, fill='tozeroy', name='Dejanski prihodek', line_color='red'))
+    fig_hb.add_hline(y=mesecni_prihodek, line_dash="dash", annotation_text="Vaša polna plača")
+    fig_hb.update_layout(title="Padanje prihodkov v 3 letih", xaxis_title="Mesec", yaxis_title="Prihodek (€)", height=300)
+    st.plotly_chart(fig_hb, use_container_width=True)
 
 st.markdown("---")
 
@@ -49,10 +66,7 @@ def narisi_graf(naslov, vrednost, barva, max_val):
         value = vrednost,
         title = {'text': naslov, 'font': {'size': 20}},
         gauge = {'axis': {'range': [0, max_val]},
-                 'bar': {'color': barva},
-                 'steps': [
-                     {'range': [0, vrednost], 'color': "rgba(255, 0, 0, 0.1)"}
-                 ]}
+                 'bar': {'color': barva}}
     ))
     fig.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
     return fig
@@ -62,26 +76,13 @@ limit = potreba_invalidnost + 20000
 
 with col1:
     st.plotly_chart(narisi_graf("Kritje za primer SMRTI", vrzel_smrt, "#31333F", limit), use_container_width=True)
-    st.info(f"**Logika:** 3x letni prihodek + krediti. To omogoči družini 3 leta prilagoditve in poplačilo dolgov.")
+    st.caption(f"Formula: (3x Letni prihodek) + Krediti - Prihranki")
 
 with col2:
     st.plotly_chart(narisi_graf("Kritje za INVALIDNOST", vrzel_invalidnost, "#FF4B4B", limit), use_container_width=True)
-    st.error(f"**Logika:** 6x letni prihodek + krediti. Invalidnost zahteva več sredstev zaradi stroškov oskrbe in trajnega izpada.")
+    st.caption(f"Formula: (6x Letni prihodek) + Krediti - Prihranki")
 
 st.markdown("---")
 
-# --- PRIKAZ 3: PRIMERJAVA S CENAMI ---
-st.subheader("☕ Investicija v mirno spanje")
-# Informativna dnevna premija
-dnevna_investicija = (vrzel_invalidnost / 100000) * 1.10 # Okvirno 1.1€ na 100k kritja
-
-cc1, cc2 = st.columns([2, 1])
-with cc1:
-    st.markdown(f"""
-    ### Zakaj so te številke pomembne?
-    V primeru 100% invalidnosti bi vaša družina potrebovala **{vrzel_invalidnost:,.0f} €**, da bi ohranila trenutni standard. 
-    Brez ustrezne police ta dolg prevzamejo vaši najbližji.
-    """)
-with cc2:
-    st.metric("Dnevni strošek zaščite", f"{dnevna_investicija:.2f} €")
-    st.write("To je manj kot stane kava ali prigrizek v avtomatu.")
+# --- ZAKLJUČEK ---
+st.info(f"💡 **Ključna ugotovitev:** Samo huda bolezen brez trajne invalidnosti bi vašo družino stala **{skupni_izpad_huda_bolezen:,.0f} €**. Ali imate ta znesek trenutno na računu?")

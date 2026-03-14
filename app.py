@@ -1,74 +1,78 @@
 import streamlit as st
 import plotly.graph_objects as go
 
-st.set_page_config(page_title="Analiza finančne vrzeli", layout="wide")
+st.set_page_config(page_title="Coach Kalkulator: Varnostna Vrzel", layout="wide")
 
-# Naslov in uvod
-st.title("🛡️ Diagnostika družinske finančne varnosti")
+st.title("🛡️ Diagnostika prodajne vrzeli: Smrt & Invalidnost")
 st.markdown("---")
 
-# Glavna postavitev: Levi del za vnose, desni za rezultat
-col1, col2 = st.columns([1, 2], gap="large")
+# VNOSI V STRANSKI VRSTICI
+with st.sidebar:
+    st.header("👤 Podatki o stranki")
+    letni_prihodek = st.number_input("Letni neto prihodek zakonca (€)", value=25000, step=1000)
+    kredit = st.number_input("Preostanek vseh kreditov (€)", value=100000, step=5000)
+    prihranki = st.number_input("Trenutni prihranki (€)", value=10000)
+    
+    st.markdown("---")
+    st.subheader("🎯 Coach kotiček: DISC")
+    tip = st.selectbox("Tip stranke:", ["D", "I", "S", "C"])
+    nasveti = {
+        "D": "Bodi kratek. Pokaži primanjkljaj in takojšnjo rešitev.",
+        "I": "Poudari, kako bo družina ohranila standard (status).",
+        "S": "Govori o miru, varnosti in zaščiti gnezda.",
+        "C": "Poudari logiko formule (3x in 6x prihodek)."
+    }
+    st.info(nasveti[tip])
+
+# FORMULA: Izračun potreb po tvojih navodilih
+potreba_smrt = (letni_prihodek * 3) + kredit
+potreba_invalidnost = (letni_prihodek * 6) + kredit
+
+vrzel_smrt = max(0, potreba_smrt - prihranki)
+vrzel_invalidnost = max(0, potreba_invalidnost - prihranki)
+
+# VIZUALIZACIJA
+col1, col2 = st.columns(2)
+
+def narisi_graf(naslov, vrednost, barva):
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = vrednost,
+        title = {'text': naslov},
+        gauge = {'axis': {'range': [0, potreba_invalidnost + 50000]},
+                 'bar': {'color': barva}}
+    ))
+    return fig
 
 with col1:
-    st.header("📋 Vhodni podatki")
-    
-    with st.expander("Stroški in dolgovi", expanded=True):
-        mesecni_stroski = st.slider("Mesečni proračun družine (€)", 800, 10000, 2000, step=100)
-        leta_podpore = st.number_input("Leta kritja (npr. do konca šolanja)", value=15)
-        kredit = st.number_input("Preostali dolgovi/krediti (€)", value=80000)
-
-    with st.expander("Viri in prihranki", expanded=True):
-        prihranki = st.number_input("Trenutna likvidna sredstva (€)", value=10000)
-        drzava = st.slider("Socialna varnost/Pokojnina (€/mesec)", 0, 1200, 550)
-
-# Izračuni (Logika vrzeli)
-potrebe_skupaj = (mesecni_stroski * 12 * leta_podpore) + kredit
-viri_skupaj = (drzava * 12 * leta_podpore) + prihranki
-vrzel = potrebe_skupaj - viri_skupaj
-
-# Približna dnevna premija (informativno za prodajni argument)
-dnevna_premija = (vrzel / 100000) * 0.80  # Okvirna ocena: 0.80€ na 100k kritja
+    st.subheader("💀 Scenarij: Smrt")
+    st.plotly_chart(narisi_graf("Potrebno kritje (€)", vrzel_smrt, "#31333F"), use_container_width=True)
+    st.write(f"Formula: ({letni_prihodek:,.0f}€ * 3) + {kredit:,.0f}€ dolga")
 
 with col2:
-    st.header("📊 Vaša finančna slika")
-    
-    if vrzel > 0:
-        # Vizualizacija z Grafom
-        fig = go.Figure()
-        fig.add_trace(go.Indicator(
-            mode = "number+delta",
-            value = vrzel,
-            title = {"text": "Finančni primanjkljaj (GAP)"},
-            number = {'suffix': " €", 'font': {'color': 'red'}},
-            delta = {'reference': 0, 'relative': False}
-        ))
-        st.plotly_chart(fig, use_container_width=True)
+    st.subheader("♿ Scenarij: 100% Invalidnost")
+    st.plotly_chart(narisi_graf("Potrebno kritje (€)", vrzel_invalidnost, "#FF4B4B"), use_container_width=True)
+    st.write(f"Formula: ({letni_prihodek:,.0f}€ * 6) + {kredit:,.0f}€ dolga")
 
-        # Primerjava s ceno kave (Visual Benchmarking)
-        st.markdown("---")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.metric("Vrednost vrzeli", f"{vrzel:,.0f} €")
-            st.caption("Znesek, ki ga vaša družina nima v primeru izpada dohodka.")
-        with c2:
-            st.metric("Dnevna investicija", f"{dnevna_premija:.2f} €")
-            st.caption("Cena za popolno zaprtje te vrzeli.")
+st.markdown("---")
 
-        # PRODAJNI ARGUMENT S SLIKO/IKONO
-        st.info(f"💡 **Primerjava:** Zaprtje te vrzeli vas stane manj kot **ena kava v mestu dnevno**. Ali je varnost vaše družine vredna 1.50 €?")
+# PRIMERJAVA S CENAMI (Visual Anchoring)
+st.subheader("☕ Kaj to pomeni za vaš žep?")
+c1, c2, c3 = st.columns(3)
+
+# Informativni izračun premije (0.7€ na 100k za smrt, 1.2€ na 100k za invalidnost - okvirno)
+ocenjena_mesecna = (vrzel_smrt / 100000 * 7) + (vrzel_invalidnost / 100000 * 12)
+dnevna = ocenjena_mesecna / 30
+
+with c1:
+    st.metric("Skupna vrzel (Najhujši scenarij)", f"{vrzel_invalidnost:,.0f} €")
+with c2:
+    st.metric("Dnevna investicija v varnost", f"{dnevna:.2f} €")
+with c3:
+    if dnevna < 2.0:
+        st.success("Cena je nižja od ene kave dnevno!")
     else:
-        st.success("Čestitamo! Vaša trenutna sredstva in državna kritja zadoščajo vašim ciljem.")
+        st.warning("Investicija v varnost je še vedno manjša od stroška kosila.")
 
-# Dodatek za Coache (Psihometrični nasvet)
-st.sidebar.markdown("---")
-st.sidebar.subheader("🎯 Coach kotiček (DISC)")
-tip_stranke = st.sidebar.selectbox("Tip stranke:", ["D - Dominanten", "I - Interaktiven", "S - Stanoviten", "C - Analitičen"])
-
-nasveti = {
-    "D - Dominanten": "Fokusiraj se na 'Kontrolo'. Brez zavarovanja izgubijo nadzor nad svojo zapuščino.",
-    "I - Interaktiven": "Fokusiraj se na 'Zgodbo'. Kako bo družina ohranila življenjski slog in status?",
-    "S - Stanoviten": "Fokusiraj se na 'Varnost'. Poudari mirno spanje in zaščito najbližjih.",
-    "C - Analitičen": "Fokusiraj se na 'Logiko'. Pokaži jim izračun vrzeli do zadnjega evra."
-}
-st.sidebar.write(nasveti[tip_stranke])
+st.markdown(f"### 💡 Prodajni nasvet za tip {tip}:")
+st.write(f"Stranki pokaži razliko med grafoma. Invalidnost je **2x dražja** za družino kot smrt, ker zakonec ostane doma in potrebuje oskrbo, prihodka pa ni.")
